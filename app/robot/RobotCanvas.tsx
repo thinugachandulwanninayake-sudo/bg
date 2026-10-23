@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, type ComponentRef, type MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
-import { MathUtils, Spherical, Vector3, type PerspectiveCamera } from 'three';
+import { DoubleSide, MathUtils, Spherical, Vector3, type PerspectiveCamera } from 'three';
 import GuardianGLB from './GuardianGLB';
+import Dust from '../scene/Dust';
+import OrbitalRings from '../scene/OrbitalRings';
 import { Suspense } from 'react';
 import type { RobotInput, RobotRig } from './robot-types';
 
@@ -15,8 +17,8 @@ import type { RobotInput, RobotRig } from './robot-types';
 const FOV = 27;
 const HALF_TAN = Math.tan(MathUtils.degToRad(FOV / 2));
 /** World-space box that must always fit in view (robot is ~4.9 tall, ~3.7 wide with arms). */
-const FIT_HEIGHT = 6.3;
-const FIT_WIDTH = 4.6;
+const FIT_HEIGHT = 7.4;
+const FIT_WIDTH = 5.2;
 const TARGET: [number, number, number] = [0, 0, 0];
 /** Default polar angle: camera a few degrees above the horizon. */
 const DEFAULT_POLAR = Math.PI / 2 - 0.1;
@@ -223,6 +225,44 @@ function ReadySignal({ onReady }: { onReady(): void }) {
   return null;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Atmospheric 3D layer: orbital rings, dust and a floor halo around the model */
+/* -------------------------------------------------------------------------- */
+
+const MODE_ACCENTS = ['#18c3f3', '#8f78ff', '#16d9b5'] as const;
+
+function GuardianAtmosphere({ animate, mode }: { animate: boolean; mode: number }) {
+  const accent = MODE_ACCENTS[mode] ?? MODE_ACCENTS[0];
+  return (
+    <group>
+      <group position={[0, -0.15, -1.6]}>
+        <OrbitalRings animate={animate} scale={1.4} intensity={0.5} />
+      </group>
+      <Dust
+        count={200}
+        spread={13}
+        size={0.045}
+        color={accent}
+        opacity={0.55}
+        speed={0.02}
+        animate={animate}
+        parallax={0.008}
+      />
+      <mesh position={[0, -2.4, 0]} rotation={[-Math.PI / 2, 0, 0]} frustumCulled={false}>
+        <ringGeometry args={[1.5, 2.9, 72]} />
+        <meshBasicMaterial
+          color={accent}
+          transparent
+          opacity={0.13}
+          side={DoubleSide}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 function VisibilityInvalidate({ visible }: { visible: boolean }) {
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
@@ -273,24 +313,30 @@ export default function RobotCanvas({
       style={{ width: '100%', height: '100%' }}
     >
       {/* Three lights in total; no shadows anywhere. */}
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[3.5, 5, 5]} intensity={1.4} />
-      <directionalLight position={[-5, 2.5, -4]} intensity={1.0} color="#2fd0ff" />
+      <ambientLight intensity={0.22} />
+      <directionalLight position={[3.5, 5, 5]} intensity={0.95} color="#eaf8ff" />
+      <directionalLight position={[-5, 2.5, -4]} intensity={0.8} color="#2fd0ff" />
+      {/* Cool key from the front-right and cyan/violet rims from behind give the
+          chrome defined edges instead of a flat wash. */}
+      <directionalLight position={[6, 3, -6]} intensity={1.15} color="#9a86ff" />
+      <directionalLight position={[-7, 4, -3]} intensity={0.9} color="#35d6ff" />
+      <spotLight position={[0, 6, 6]} angle={0.7} penumbra={1} intensity={22} distance={20} color="#d8f6ff" />
 
       {/* Procedural studio reflections for the chrome. Rendered once, no network fetch. */}
       <Environment resolution={128} frames={1}>
         {/* Mid-blue studio so chrome reflects light, not black; bright panels add highlights. */}
-        <color attach="background" args={['#5f8fbf']} />
-        <Lightformer form="rect" intensity={2.6} color="#ffffff" position={[0, 3, 9]} scale={[10, 2.6, 1]} />
-        <Lightformer form="rect" intensity={2.8} color="#d8f4ff" position={[-7, 0.5, 4]} scale={[1.6, 9, 1]} />
-        <Lightformer form="rect" intensity={2.4} color="#9fdcff" position={[7, 0.5, 4]} scale={[1.6, 9, 1]} />
-        <Lightformer form="rect" intensity={1.6} color="#eaf8ff" position={[0, 8, 0]} scale={[12, 12, 1]} />
-        <Lightformer form="ring" intensity={3.2} color="#18c3f3" position={[0, 2, -8]} scale={7} />
-        <Lightformer form="rect" intensity={1.0} color="#0b3a7a" position={[0, -6, 3]} scale={[14, 10, 1]} />
-        <Lightformer form="rect" intensity={0.6} color="#07254f" position={[0, 0, -9]} scale={[14, 6, 1]} />
+        <color attach="background" args={['#21476f']} />
+        <Lightformer form="rect" intensity={1.35} color="#ffffff" position={[0, 3, 9]} scale={[10, 2.6, 1]} />
+        <Lightformer form="rect" intensity={1.5} color="#bfe9ff" position={[-7, 0.5, 4]} scale={[1.6, 9, 1]} />
+        <Lightformer form="rect" intensity={1.3} color="#8fd0ff" position={[7, 0.5, 4]} scale={[1.6, 9, 1]} />
+        <Lightformer form="rect" intensity={0.8} color="#eaf8ff" position={[0, 8, 0]} scale={[12, 12, 1]} />
+        <Lightformer form="ring" intensity={2.4} color="#18c3f3" position={[0, 2, -8]} scale={7} />
+        <Lightformer form="rect" intensity={0.45} color="#0b3a7a" position={[0, -6, 3]} scale={[14, 10, 1]} />
+        <Lightformer form="rect" intensity={0.35} color="#07254f" position={[0, 0, -9]} scale={[14, 6, 1]} />
       </Environment>
 
       <Suspense fallback={null}><GuardianGLB mode={mode} animate={animate} reducedMotion={reducedMotion} input={input} /></Suspense>
+      <GuardianAtmosphere animate={animate} mode={mode} />
 
       <OrbitControls
         ref={controlsRef}
