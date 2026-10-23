@@ -15,7 +15,12 @@ export default function GuardianGLB({ mode, animate, reducedMotion, input }: Pro
     instance.traverse((obj) => {
       if ('isMesh' in obj && obj.isMesh) {
         const mesh = obj as import('three').Mesh;
-        mesh.material = (mesh.material as MeshStandardMaterial).clone();
+        const clone = (mesh.material as MeshStandardMaterial).clone();
+        // Studio reflections are softened so the chrome reads as brushed metal
+        // against the navy stage instead of blowing out to white.
+        clone.envMapIntensity = 0.7;
+        if (clone.metalness > 0.75) clone.roughness = Math.max(clone.roughness, 0.22);
+        mesh.material = clone;
         mesh.frustumCulled = false;
       }
     });
@@ -73,7 +78,7 @@ export default function GuardianGLB({ mode, animate, reducedMotion, input }: Pro
     const accent = modeColors[mode] ?? modeColors[0];
     for (const mat of glowMaterials) {
       mat.emissive.copy(accent);
-      mat.emissiveIntensity = 0.55 + idle * (.12 + .12 * Math.sin(t * 2.1));
+      mat.emissiveIntensity = 0.72 + idle * (.14 + .14 * Math.sin(t * 2.1));
     }
   });
   return <group ref={root} dispose={null}><primitive object={model as Object3D} /></group>;
